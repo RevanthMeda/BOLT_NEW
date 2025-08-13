@@ -29,16 +29,18 @@ services:
     environment:
       MH_STORAGE: memory
 
+  # docker-compose.yml
+
   # Backend API Server
   backend:
     build:
-      context: ./server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: server/Dockerfile
     container_name: cully_backend
     environment:
       DATABASE_URL: postgresql://cully:password@postgres:5432/cully_db?schema=public
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production
-      JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-in-production
+      JWT_SECRET: "7pj3NoE6mqQXs80s1Dd3EpWDVklvHkhEE233yz5GQKU="
+      JWT_REFRESH_SECRET: "VKsYuxI+J2rFOh/07LN11JVqfLKxQWDniCeqiJA6QpM="
       PORT: 3001
       NODE_ENV: development
       SMTP_HOST: mailhog
