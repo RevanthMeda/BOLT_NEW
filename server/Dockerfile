@@ -1,11 +1,10 @@
-# server/Dockerfile
-
-# ---- Base ----
-# Use the 'slim' variant for better compatibility with Prisma
-FROM node:18-slim AS base
+# Stage 1: Build Stage
+FROM node:18-slim AS build
 WORKDIR /app
 
-# ---- Dependencies ----
+# Install OpenSSL for Prisma
+RUN apt-get update && apt-get install -y openssl
+
 # Copy all necessary package files and the prisma schema
 COPY server/package.json server/package-lock.json ./server/
 COPY prisma ./prisma/
@@ -13,7 +12,6 @@ COPY prisma ./prisma/
 # Install ALL dependencies (dev and production) needed for the build
 RUN cd server && npm install
 
-# ---- Build ----
 # Copy the rest of the source code
 COPY . .
 
@@ -21,18 +19,24 @@ COPY . .
 RUN cd server && npx prisma generate --schema=../prisma/schema.prisma
 RUN cd server && npm run build
 
-# ---- Prune Dev Dependencies ---
-# Remove development dependencies to create a smaller production image
+# Prune development dependencies
 RUN cd server && npm prune --production
 
-# ---- Final Production Image ----
+# Stage 2: Final Production Image
 FROM node:18-slim AS production
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copy built code and production node_modules from the previous stage
-COPY --from=build /app/server/dist ./server/dist
+# Install OpenSSL for Prisma runtime
+RUN apt-get update && apt-get install -y openssl
+
+# Copy pruned production node_modules from the build stage
 COPY --from=build /app/server/node_modules ./server/node_modules
+
+# Copy the built code from the build stage
+COPY --from=build /app/server/dist ./server/dist
+
+# Copy Prisma schema and the server's package.json
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/server/package.json ./server/
 
