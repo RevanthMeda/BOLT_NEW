@@ -2,7 +2,8 @@
 
 import express from 'express';
 // Import Prisma, specific types, and the error class
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { authenticateToken } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { createError } from '../middleware/errorHandler.js';
@@ -15,7 +16,7 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res, next) 
   try {
     const user = req.user!;
     // Correctly type the whereClause using Prisma's generated types
-    let whereClause: Prisma.ReportWhereInput = {};
+    let whereClause: any = {};
 
     if (user.role === 'ENGINEER') {
       whereClause = { creatorId: user.id };
@@ -98,8 +99,7 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res, next)
 
     res.status(201).json(newReport);
   } catch (error: unknown) { // Type the error as unknown for safety
-    // Now, this check will work correctly
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
         return next(createError('A report with this Document Reference and Revision already exists.', 400));
     }
     next(error);

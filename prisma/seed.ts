@@ -1,5 +1,23 @@
-import { PrismaClient, UserRole, UserStatus, ReportStatus } from '@prisma/client';
+import { PrismaClient } from '.prisma/client';
 import bcrypt from 'bcryptjs';
+
+// Define enums manually if not exported by Prisma
+enum UserRole {
+  ADMIN = 'ADMIN',
+  ENGINEER = 'ENGINEER',
+  TECHNICAL_MANAGER = 'TECHNICAL_MANAGER',
+  PROJECT_MANAGER = 'PROJECT_MANAGER',
+}
+
+enum UserStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+}
+
+enum ReportStatus {
+  DRAFT = 'DRAFT',
+  FINAL = 'FINAL',
+}
 
 const prisma = new PrismaClient();
 
