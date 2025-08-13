@@ -1,38 +1,44 @@
 # server/Dockerfile
 
-# ---- Base Stage ----
-FROM node:18-alpine AS base
+# ---- Base ----
+# Use the 'slim' variant for better compatibility with Prisma
+FROM node:18-slim AS base
 WORKDIR /app
-# Copy package files from the server directory
-COPY server/package*.json ./
-# Copy the prisma directory from the root
+
+# ---- Dependencies ----
+# Copy all necessary package files and the prisma schema
+COPY server/package.json server/package-lock.json ./server/
 COPY prisma ./prisma/
 
-# ---- Dependencies Stage ----
-FROM base AS dependencies
-RUN npm ci
+# Install ALL dependencies (dev and production) needed for the build
+RUN cd server && npm install
 
-# ---- Build Stage ----
-FROM dependencies AS build
-# Copy the server source code
-COPY server/. .
-RUN npx prisma generate --schema=./prisma/schema.prisma
-RUN npm run build
+# ---- Build ----
+# Copy the rest of the source code
+COPY . .
 
-# ---- Production Stage ----
-FROM node:18-alpine AS production
+# Generate Prisma Client and then build the TypeScript project
+RUN cd server && npx prisma generate --schema=../prisma/schema.prisma
+RUN cd server && npm run build
+
+# ---- Prune Dev Dependencies ---
+# Remove development dependencies to create a smaller production image
+RUN cd server && npm prune --production
+
+# ---- Final Production Image ----
+FROM node:18-slim AS production
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-# The schema is needed for the prisma client in production
+# Copy built code and production node_modules from the previous stage
+COPY --from=build /app/server/dist ./server/dist
+COPY --from=build /app/server/node_modules ./server/node_modules
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/server/package.json ./server/
 
 # Create uploads directory
 RUN mkdir -p uploads logs
 
 EXPOSE 3001
-
-# Start the application
+WORKDIR /app/server
 CMD ["npm", "run", "start"]

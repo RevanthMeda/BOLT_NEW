@@ -1,5 +1,4 @@
 services:
-  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: cully_postgres
@@ -17,17 +16,13 @@ services:
       timeout: 5s
       retries: 5
 
-  # MailHog for email testing
   mailhog:
     image: mailhog/mailhog:latest
     container_name: cully_mailhog
     ports:
-      - "1025:1025"  # SMTP server
-      - "8025:8025"  # Web UI
-    environment:
-      MH_STORAGE: memory
+      - "1025:1025"
+      - "8025:8025"
 
-  # Backend API Server
   backend:
     build:
       context: .
@@ -38,15 +33,12 @@ services:
     ports:
       - "3001:3001"
     volumes:
-      - ./server:/app                  # Mounts the server code for live-reloading
-      - ./prisma:/app/prisma            # Mounts the prisma schema so it's available at runtime
-      - upload_data:/app/uploads
+      - ./server/src:/app/server/src  # Only mount the src for live reload
+      - ./prisma:/app/prisma        # Mount the prisma schema
     depends_on:
       postgres:
         condition: service_healthy
-    command: npm run dev
 
-  # Frontend React App
   frontend:
     build:
       context: .
