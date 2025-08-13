@@ -1,42 +1,20 @@
+
+
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
 import { createError } from './errorHandler.js';
+
+const prisma = new PrismaClient();
 
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     email: string;
+    fullName: string;
     role: string;
   };
 }
-
-// Mock user lookup (replace with real database)
-const users: any[] = [
-  {
-    id: '1',
-    email: 'admin@test.com',
-    fullName: 'System Administrator',
-    role: 'ADMIN',
-  },
-  {
-    id: '2',
-    email: 'engineer@test.com',
-    fullName: 'John Engineer', 
-    role: 'ENGINEER',
-  },
-  {
-    id: '3',
-    email: 'tm@test.com',
-    fullName: 'Technical Manager',
-    role: 'TECHNICAL_MANAGER',
-  },
-  {
-    id: '4',
-    email: 'pm@test.com',
-    fullName: 'Project Manager',
-    role: 'PROJECT_MANAGER',
-  }
-];
 
 export const authenticateToken = async (
   req: AuthenticatedRequest,
@@ -51,21 +29,39 @@ export const authenticateToken = async (
       return next(createError('Access token required', 401));
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
-    
-    const user = users.find(u => u.id === decoded.userId);
-    if (!user) {
-      return next(createError('User not found', 401));
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET environment variable is not set.');
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as { userId: string };
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        status: true
+      }
+    });
+
+    if (!user || user.status !== 'ACTIVE') {
+      return next(createError('User not found or not active', 401));
     }
 
     req.user = {
       id: user.id,
-      email: user.email, 
+      email: user.email,
+      fullName: user.fullName,
       role: user.role
     };
     
     next();
   } catch (error) {
-    next(createError('Invalid token', 401));
+    if (error instanceof jwt.JsonWebTokenError) {
+      return next(createError('Invalid token', 401));
+    }
+    next(error);
   }
 };

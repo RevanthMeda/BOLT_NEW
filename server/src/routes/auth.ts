@@ -1,47 +1,17 @@
+// server/src/routes/auth.ts
+
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
 import { authenticateToken } from '../middleware/auth.js';
+import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
+import { createError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
-
-// Mock user database (replace with real database)
-const users: any[] = [
-  {
-    id: '1',
-    email: 'admin@test.com',
-    fullName: 'System Administrator',
-    role: 'ADMIN',
-    status: 'ACTIVE',
-    password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewwwK7x0xr/YdS/G' // Test123!
-  },
-  {
-    id: '2', 
-    email: 'engineer@test.com',
-    fullName: 'John Engineer',
-    role: 'ENGINEER',
-    status: 'ACTIVE',
-    password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewwwK7x0xr/YdS/G' // Test123!
-  },
-  {
-    id: '3',
-    email: 'tm@test.com', 
-    fullName: 'Technical Manager',
-    role: 'TECHNICAL_MANAGER',
-    status: 'ACTIVE',
-    password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewwwK7x0xr/YdS/G' // Test123!
-  },
-  {
-    id: '4',
-    email: 'pm@test.com',
-    fullName: 'Project Manager', 
-    role: 'PROJECT_MANAGER',
-    status: 'ACTIVE',
-    password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewwwK7x0xr/YdS/G' // Test123!
-  }
-];
+const prisma = new PrismaClient();
 
 const registerSchema = z.object({
   email: z.string().email('Invalid email format'),
@@ -58,39 +28,36 @@ router.post('/register', async (req, res, next) => {
   try {
     const { email, fullName, role } = registerSchema.parse(req.body);
 
-    const existingUser = users.find(user => user.email === email);
+    const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        error: { message: 'User already exists' }
-      });
+      return next(createError('User with this email already exists', 400));
     }
 
-    const tempPassword = 'temp123';
+    // A temporary password is set, which an admin would later change upon approval
+    const tempPassword = Math.random().toString(36).slice(-8);
     const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
-    const user = {
-      id: (users.length + 1).toString(),
-      email,
-      fullName,
-      role,
-      status: 'PENDING',
-      password: hashedPassword
-    };
+    const user = await prisma.user.create({
+      data: {
+        email,
+        fullName,
+        role,
+        password: hashedPassword,
+        status: 'PENDING',
+      },
+    });
 
-    users.push(user);
-    logger.info('User registered', { userId: user.id, email: user.email });
+    logger.info('User registered and pending approval', { userId: user.id, email: user.email });
 
+    // In a real app, you would email the admin here to notify them of a new registration.
+    
     res.status(201).json({
       success: true,
-      data: { user: { ...user, password: undefined }, tempPassword }
+      data: { message: 'Registration successful! Your account is now pending admin approval.' }
     });
   } catch (error: any) {
-    if (error.name === 'ZodError') {
-      return res.status(400).json({
-        success: false,
-        error: { message: 'Validation error', details: error.errors }
-      });
+    if (error instanceof z.ZodError) {
+      return next(createError('Invalid input data', 400));
     }
     next(error);
   }
@@ -100,29 +67,26 @@ router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
-    const user = users.find(u => u.email === email);
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({
-        success: false,
-        error: { message: 'Invalid credentials' }
-      });
+      return next(createError('Invalid credentials', 401));
     }
 
     if (user.status !== 'ACTIVE') {
-      return res.status(401).json({
-        success: false,
-        error: { message: 'Account is not active' }
-      });
+      return next(createError('Your account is not active. Please contact an administrator.', 401));
+    }
+    
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET environment variable is not set.');
     }
 
     const token = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET || 'fallback-secret',
+      process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
-
-    user.lastLogin = new Date().toISOString();
-    logger.info('User logged in', { userId: user.id, email: user.email });
+    
+    logger.info('User logged in', { userId: user.id });
 
     res.json({
       success: true,
@@ -132,43 +96,29 @@ router.post('/login', async (req, res, next) => {
           id: user.id,
           email: user.email,
           fullName: user.fullName,
-          role: user.role
+          role: user.role,
         }
       }
     });
   } catch (error: any) {
-    if (error.name === 'ZodError') {
-      return res.status(400).json({
-        success: false,
-        error: { message: 'Validation error', details: error.errors }
-      });
+     if (error instanceof z.ZodError) {
+      return next(createError('Invalid input data', 400));
     }
     next(error);
   }
 });
 
-router.get('/me', authenticateToken, (req, res) => {
+router.get('/me', authenticateToken, (req: AuthenticatedRequest, res) => {
   res.json({
     success: true,
     data: { user: req.user }
   });
 });
 
-router.post('/refresh', authenticateToken, (req, res) => {
-  const token = jwt.sign(
-    { userId: req.user!.id },
-    process.env.JWT_SECRET || 'fallback-secret',
-    { expiresIn: '24h' }
-  );
 
-  res.json({
-    success: true,
-    data: { token, user: req.user }
-  });
-});
-
-router.post('/logout', authenticateToken, (req, res) => {
-  logger.info('User logged out', { userId: req.user?.id });
+router.post('/logout', (req, res) => {
+  // On the client-side, the token should be deleted.
+  // This endpoint is useful for audit logging.
   res.json({
     success: true,
     data: { message: 'Logged out successfully' }
