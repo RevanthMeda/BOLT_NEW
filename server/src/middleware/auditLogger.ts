@@ -5,39 +5,25 @@ import { logger } from '../utils/logger.js';
 
 const prisma = new PrismaClient();
 
-const AUDIT_ACTIONS = [
-  'login',
-  'logout',
-  'report_create',
-  'report_submit',
-  'report_approve',
-  'report_reject',
-  'report_export',
-  'user_create',
-  'user_update',
-  'user_delete',
-  'signature_create',
-  'comment_create',
-];
-
 export const auditLogger = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  // Capture original end method
   const originalEnd = res.end;
-  
-  res.end = function(chunk?: any, encoding?: any) {
-    // Only log successful operations (2xx status codes)
+
+  // The type for 'chunk' can be 'any' and for 'encoding' can be 'BufferEncoding'.
+  // We must also ensure the function returns 'res' to match the original signature.
+  res.end = function (chunk?: any, encoding?: any): typeof res {
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      logAuditEvent(req, res);
+      logAuditEvent(req);
     }
     
-    // Call original end method
-    originalEnd.call(this, chunk, encoding);
+    // The original 'end' function must be called with its context and arguments.
+    // And its return value must be returned.
+    return originalEnd.call(this, chunk, encoding);
   };
 
   next();
 };
 
-async function logAuditEvent(req: AuthenticatedRequest, res: Response) {
+async function logAuditEvent(req: AuthenticatedRequest) {
   try {
     const action = determineAction(req);
     if (!action) return;
@@ -48,11 +34,11 @@ async function logAuditEvent(req: AuthenticatedRequest, res: Response) {
       action,
       details: {
         method: req.method,
-        url: req.url,
+        url: req.originalUrl,
         userAgent: req.get('User-Agent'),
         body: sanitizeBody(req.body),
       },
-      ipAddress: req.ip || req.connection?.remoteAddress || 'unknown',
+      ipAddress: req.ip || req.socket?.remoteAddress || 'unknown',
     };
 
     await prisma.auditLog.create({ data: auditData });
@@ -63,26 +49,26 @@ async function logAuditEvent(req: AuthenticatedRequest, res: Response) {
 }
 
 function determineAction(req: AuthenticatedRequest): string | null {
-  const { method, url } = req;
+  const { method, originalUrl } = req;
   
-  if (url.includes('/auth/login') && method === 'POST') return 'login';
-  if (url.includes('/auth/logout') && method === 'POST') return 'logout';
-  if (url.includes('/reports') && method === 'POST') return 'report_create';
-  if (url.includes('/reports') && url.includes('/submit') && method === 'POST') return 'report_submit';
-  if (url.includes('/reports') && url.includes('/approve') && method === 'POST') return 'report_approve';
-  if (url.includes('/reports') && url.includes('/reject') && method === 'POST') return 'report_reject';
-  if (url.includes('/reports') && url.includes('/export') && method === 'GET') return 'report_export';
-  if (url.includes('/users') && method === 'POST') return 'user_create';
-  if (url.includes('/users') && method === 'PUT') return 'user_update';
-  if (url.includes('/users') && method === 'DELETE') return 'user_delete';
-  if (url.includes('/signatures') && method === 'POST') return 'signature_create';
-  if (url.includes('/comments') && method === 'POST') return 'comment_create';
+  if (originalUrl.includes('/auth/login') && method === 'POST') return 'login';
+  if (originalUrl.includes('/auth/logout') && method === 'POST') return 'logout';
+  if (originalUrl.includes('/reports') && method === 'POST') return 'report_create';
+  if (originalUrl.includes('/reports') && originalUrl.includes('/submit') && method === 'POST') return 'report_submit';
+  if (originalUrl.includes('/reports') && originalUrl.includes('/approve') && method === 'POST') return 'report_approve';
+  if (originalUrl.includes('/reports') && originalUrl.includes('/reject') && method === 'POST') return 'report_reject';
+  if (originalUrl.includes('/reports') && originalUrl.includes('/export') && method === 'GET') return 'report_export';
+  if (originalUrl.includes('/users') && method === 'POST') return 'user_create';
+  if (originalUrl.includes('/users') && method === 'PUT') return 'user_update';
+  if (originalUrl.includes('/users') && method === 'DELETE') return 'user_delete';
+  if (originalUrl.includes('/signatures') && method === 'POST') return 'signature_create';
+  if (originalUrl.includes('/comments') && method === 'POST') return 'comment_create';
   
   return null;
 }
 
 function extractReportId(req: Request): string | null {
-  const match = req.url.match(/\/reports\/([a-zA-Z0-9]+)/);
+  const match = req.originalUrl.match(/\/reports\/([a-zA-Z0-9]+)/);
   return match ? match[1] : null;
 }
 
