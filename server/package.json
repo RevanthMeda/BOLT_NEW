@@ -1,3 +1,4 @@
+
 {
   "name": "cully-server",
   "version": "1.0.0",
@@ -8,11 +9,11 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc",
-    "db:generate": "prisma generate --schema=../prisma/schema.prisma",
-    "db:migrate": "prisma migrate dev --schema=../prisma/schema.prisma",
-    "db:seed": "tsx ../prisma/seed.ts",
-    "db:reset": "prisma migrate reset --schema=../prisma/schema.prisma --force",
-    "db:studio": "prisma studio --schema=../prisma/schema.prisma"
+    "db:generate": "prisma generate --schema=./prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
+    "db:seed": "tsx ./prisma/seed.ts",
+    "db:reset": "prisma migrate reset --schema=./prisma/schema.prisma --force",
+    "db:studio": "prisma studio --schema=./prisma/schema.prisma"
   },
   "dependencies": {
     "express": "^4.18.2",
