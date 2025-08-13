@@ -34,11 +34,12 @@ services:
       dockerfile: server/Dockerfile
     container_name: cully_backend
     env_file:
-      - server/.env # This tells Docker to load secrets from your .env file
+      - server/.env
     ports:
       - "3001:3001"
     volumes:
-      - ./server:/app
+      - ./server:/app                  # Mounts the server code for live-reloading
+      - ./prisma:/app/prisma            # Mounts the prisma schema so it's available at runtime
       - upload_data:/app/uploads
     depends_on:
       postgres:
@@ -60,7 +61,6 @@ services:
       VITE_API_URL: http://localhost:3001
     depends_on:
       - backend
-    command: npm run dev -- --host
 
 volumes:
   postgres_data:

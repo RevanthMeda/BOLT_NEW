@@ -13,7 +13,10 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    // Add the types for Node and Prisma explicitly
+    "types": ["node"],
+    "typeRoots": ["./node_modules/@types", "./node_modules/.prisma/client"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
