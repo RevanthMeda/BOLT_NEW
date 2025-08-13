@@ -1,25 +1,23 @@
-/*
-  # Cully Report Management System Database Schema
-
-  1. Core Tables
-    - User: System users with RBAC
-    - Report: SAT reports with full lifecycle tracking
-    - ReportStep: Individual wizard step data
-    - Signature: Digital signatures for approvals
-    - Comment: Comment threads for collaboration
-    - AuditLog: Complete audit trail
-    - File: File attachments and uploads
-
-  2. Security
-    - Row Level Security enforced at query level
-    - RBAC with strict role-based access
-    - Audit logging for all critical operations
-
-  3. Workflow
-    - State machine for report approval workflow
-    - Digital signatures with full traceability
-    - Automated notifications and status updates
-*/
+// Cully Report Management System Database Schema
+//
+// 1. Core Tables
+//   - User: System users with RBAC
+//   - Report: SAT reports with full lifecycle tracking
+//   - ReportStep: Individual wizard step data
+//   - Signature: Digital signatures for approvals
+//   - Comment: Comment threads for collaboration
+//   - AuditLog: Complete audit trail
+//   - File: File attachments and uploads
+//
+// 2. Security
+//   - Row Level Security enforced at query level
+//   - RBAC with strict role-based access
+//   - Audit logging for all critical operations
+//
+// 3. Workflow
+//   - State machine for report approval workflow
+//   - Digital signatures with full traceability
+//   - Automated notifications and status updates
 
 generator client {
   provider = "prisma-client-js"
@@ -92,22 +90,23 @@ model User {
   signatures         Signature[]
   comments           Comment[]
   auditLogs          AuditLog[]
+  lastLogin          DateTime?
 
   @@map("users")
 }
 
 model Report {
-  id             String       @id @default(cuid())
-  title          String
-  projectRef     String
-  documentRef    String
-  revision       String
-  type           ReportType   @default(SAT)
-  status         ReportStatus @default(DRAFT)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  submittedAt    DateTime?
-  completedAt    DateTime?
+  id               String       @id @default(cuid())
+  title            String
+  projectRef       String
+  documentRef      String
+  revision         String
+  type             ReportType   @default(SAT)
+  status           ReportStatus @default(DRAFT)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  submittedAt      DateTime?
+  completedAt      DateTime?
   finalStoragePath String?
 
   // Foreign Keys
@@ -116,15 +115,15 @@ model Report {
   pmId      String?
 
   // Relations
-  creator           User           @relation("ReportCreator", fields: [creatorId], references: [id])
-  technicalManager  User?          @relation("TechnicalManager", fields: [tmId], references: [id])
-  projectManager    User?          @relation("ProjectManager", fields: [pmId], references: [id])
-  
-  steps             ReportStep[]
-  signatures        Signature[]
-  comments          Comment[]
-  files             File[]
-  auditLogs         AuditLog[]
+  creator          User           @relation("ReportCreator", fields: [creatorId], references: [id])
+  technicalManager User?          @relation("TechnicalManager", fields: [tmId], references: [id])
+  projectManager   User?          @relation("ProjectManager", fields: [pmId], references: [id])
+
+  steps      ReportStep[]
+  signatures Signature[]
+  comments   Comment[]
+  files      File[]
+  auditLogs  AuditLog[]
 
   @@unique([documentRef, revision])
   @@map("reports")
@@ -135,25 +134,25 @@ model ReportStep {
   reportId String
   stepName String
   data     Json
-  
+
   report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  
+
   @@unique([reportId, stepName])
   @@map("report_steps")
 }
 
 model Signature {
-  id          String   @id @default(cuid())
-  reportId    String
-  userId      String
-  role        UserRole
+  id            String   @id @default(cuid())
+  reportId      String
+  userId        String
+  role          UserRole
   signatureData String // Base64 encoded signature image
-  ipAddress   String
-  signedAt    DateTime @default(now())
-  
+  ipAddress     String
+  signedAt      DateTime @default(now())
+
   report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id])
-  
+
   @@map("signatures")
 }
 
@@ -164,25 +163,25 @@ model Comment {
   content   String
   mentions  String[] // Array of user IDs mentioned
   createdAt DateTime @default(now())
-  
+
   report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id])
-  
+
   @@map("comments")
 }
 
 model File {
-  id          String   @id @default(cuid())
-  reportId    String?
-  filename    String
+  id           String   @id @default(cuid())
+  reportId     String?
+  filename     String
   originalName String
-  mimeType    String
-  size        Int
-  path        String
-  uploadedAt  DateTime @default(now())
-  
+  mimeType     String
+  size         Int
+  path         String
+  uploadedAt   DateTime @default(now())
+
   report Report? @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  
+
   @@map("files")
 }
 
@@ -194,10 +193,10 @@ model AuditLog {
   details   Json?
   ipAddress String?
   createdAt DateTime @default(now())
-  
+
   user   User?   @relation(fields: [userId], references: [id])
   report Report? @relation(fields: [reportId], references: [id])
-  
+
   @@map("audit_logs")
 }
 
@@ -205,6 +204,6 @@ model SystemSetting {
   id    String @id @default(cuid())
   key   String @unique
   value Json
-  
+
   @@map("system_settings")
 }
